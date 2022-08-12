@@ -145,7 +145,7 @@ int main() {
 		}
 
 		for (int j = 0;j < numCurrProcesses;j++) {
-			wprintf(L"@@[%d]@ PID: %5d | Name:  %10ws\n",j, pids[j], pidName[j]);
+			//wprintf(L"@@[%d]@ PID: %5d | Name:  %10ws\n",j, pids[j], pidName[j]);
 		}
 
 		if (first) {
@@ -155,8 +155,8 @@ int main() {
 			continue;
 		}
 
-		wprintf(L"numCurrProcesses %d\n", numCurrProcesses);
-		wprintf(L"numOldProcesses %d\n", numOldProcesses);
+		// wprintf(L"numCurrProcesses %d\n", numCurrProcesses);
+		// wprintf(L"numOldProcesses %d\n", numOldProcesses);
 
 		int num_pids_changed = 0;
 
@@ -167,11 +167,17 @@ int main() {
 		else if (numOldProcesses > 0 && numCurrProcesses > 0 && numOldProcesses < numCurrProcesses) {
 			wprintf(L"Processes started.\n");
 			int re = get_pids_diff(pids, pids_old, numCurrProcesses, numOldProcesses, pids_change, &num_pids_changed);
+			int i = 0;
+			do 
+			{
+				if(pids_change)
+			}
 		}
 
-		wprintf(L"Pids changed: %d\n", num_pids_changed);
-
-		list_pids_changed(pids_change, num_pids_changed);
+		if (num_pids_changed > 0) {
+			wprintf(L"Pids changed: %d\n", num_pids_changed);
+			list_pids_changed(pids_change, num_pids_changed);
+		}
 		
 		// Clean pids_old before fill it with more information
 		ZeroMemory(pids_old, maxCOUNT);
