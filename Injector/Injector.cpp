@@ -46,14 +46,8 @@ BOOLEAN SetProcessPrivilege(_In_ HANDLE ProcessHandle, _In_ LPCWSTR PrivilegeNam
 	return Result;
 }
 
-int main(int argc, const char* argv[]) {
-	
-	// Check arguments
-	if (argc < 3) {
-		printf("Usage: injector <pid> <dllpath>\n");
-		return 0;
-	}
-
+int my_injection(int _pid, const char* _dllpath) 
+{
 	if (SetProcessPrivilege(GetCurrentProcess(), L"SeDebugPrivilege", TRUE, NULL)) // Нужны права админа, иначе ошибка ERROR_PRIVILEGE_NOT_HELD
 		wprintf_s(L"Successfully!\n");
 	else
@@ -63,7 +57,7 @@ int main(int argc, const char* argv[]) {
 	HANDLE hProcess = OpenProcess(
 		PROCESS_VM_WRITE | PROCESS_VM_OPERATION | PROCESS_CREATE_THREAD,
 		FALSE,
-		atoi(argv[1]));
+		_pid);
 	if (!hProcess)
 		return Error("Failed to open process");
 
@@ -71,9 +65,9 @@ int main(int argc, const char* argv[]) {
 	void* buffer = VirtualAllocEx(hProcess, nullptr, 1 << 16, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 	if (!buffer)
 		return Error("Failed to allocate buffer in target process");
-	
+
 	// Copy the DLL path to the allocated buffer
-	if (!::WriteProcessMemory(hProcess, buffer, argv[2], ::strlen(argv[2]) + 1, nullptr))
+	if (!::WriteProcessMemory(hProcess, buffer, _dllpath, ::strlen(_dllpath) + 1, nullptr))
 		return Error("Failed to write to target process");
 
 	DWORD tid;
@@ -98,4 +92,16 @@ int main(int argc, const char* argv[]) {
 
 	::CloseHandle(hThread);
 	::CloseHandle(hProcess);
+
+}
+
+int main(int argc, const char* argv[]) {
+	
+	// Check arguments
+	if (argc < 3) {
+		printf("Usage: injector <pid> <dllpath>\n");
+		return 0;
+	}
+
+	my_injection(atoi(argv[1]), argv[2]);
 }
