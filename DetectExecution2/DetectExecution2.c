@@ -6,8 +6,11 @@
 #include <TlHelp32.h>
 #include <strsafe.h>
 
+#include "injector.h"
+
 int maxCOUNT = 256;
 bool first = true;
+const char* DLLPath = "C:\\Users\\Nuno Pinto\\OneDrive\\Cyber_Security\\_STUDY\\Master_Reversing_Malware\\M11.TFM\\code\\Chapter03\\x64\\Release\\f4d0mon.dll";
 
 int Error(const char* text) {
 	printf("%s (%d)\n", text, GetLastError());
@@ -167,16 +170,16 @@ int main() {
 		else if (numOldProcesses > 0 && numCurrProcesses > 0 && numOldProcesses < numCurrProcesses) {
 			wprintf(L"Processes started.\n");
 			int re = get_pids_diff(pids, pids_old, numCurrProcesses, numOldProcesses, pids_change, &num_pids_changed);
-			int i = 0;
-			do 
-			{
-				if(pids_change)
+
+			for (int i = 0; i < num_pids_changed;i++) {
+				wprintf(L"\t%d\n", pids_change[i]);
+				my_injection(pids_change[i], DLLPath);
 			}
 		}
 
 		if (num_pids_changed > 0) {
-			wprintf(L"Pids changed: %d\n", num_pids_changed);
-			list_pids_changed(pids_change, num_pids_changed);
+			//wprintf(L"Pids changed: %d\n", num_pids_changed);
+			//list_pids_changed(pids_change, num_pids_changed);
 		}
 		
 		// Clean pids_old before fill it with more information
@@ -187,7 +190,8 @@ int main() {
 		numOldProcesses = numCurrProcesses;
 
 		// Get char to make the screen stop
-		char c = getchar();
-		if (c == 'e') return 0;
+		/*char c = getchar();
+		if (c == 'e') return 0;*/
+		Sleep(1);
 	}
 }
