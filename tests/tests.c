@@ -1,42 +1,90 @@
+#include <windows.h>
+#include <tchar.h>
 #include <stdio.h>
-#include <strsafe.h>
-#include <string.h>
-#include <stdlib.h>
-#include <Windows.h>
+#include <psapi.h>
 
-#ifndef MAX_BUF
-#define MAX_BUF 200
-#endif
+// To ensure correct resolution of symbols, add Psapi.lib to TARGETLIBS
+// and compile with -DPSAPI_VERSION=1
 
-char DLLMonitor[] = "f4d0mon.dll";
-char InjectorEXE[] = "Injector.exe";
-
-int main()
+int isDllInjected(DWORD processID, char* DLLname)
 {
-    const int buffer_size = 400;
-    char command_line[400] = " ";
-    char space[] = " ";
-    char DLLPath[150];
-    char path[MAX_BUF];
+    HMODULE hMods[1024];
+    HANDLE hProcess;
+    DWORD cbNeeded;
+    unsigned int i;
 
-    getcwd(path, MAX_BUF);
+    // Print the process identifier.
 
-    // Create fullpathfor DLLMonitor
-    strcat_s(DLLPath, 150, "\"");
-    strcat_s(DLLPath, 150, path);
-    strcat_s(DLLPath, 150, "\\");
-    strcat_s(DLLPath, 150, DLLMonitor);
-    strcat_s(DLLPath, 150, "\"");
+    printf("\nProcess ID: %u\n", processID);
 
-    // Create the command line to inject the DLL
-    strcat_s(command_line, buffer_size, InjectorEXE);
-    strcat_s(command_line, buffer_size, space);
-    strcat_s(command_line, buffer_size, "21936");
-    strcat_s(command_line, buffer_size, space);
-    strcat_s(command_line, buffer_size, DLLPath);
-    
-    printf(command_line);
-    system(command_line);
+    // Get a handle to the process.
+
+    hProcess = OpenProcess(PROCESS_QUERY_INFORMATION |
+        PROCESS_VM_READ,
+        FALSE, processID);
+    if (NULL == hProcess)
+        return 1;
+
+    // Get a list of all the modules in this process.
+
+    if (EnumProcessModules(hProcess, hMods, sizeof(hMods), &cbNeeded))
+    {
+        for (i = 0; i < (cbNeeded / sizeof(HMODULE)); i++)
+        {
+            TCHAR szModName[MAX_PATH];
+
+            // Get the full path to the module's file.
+
+            if (GetModuleFileNameEx(hProcess, hMods[i], szModName,
+                sizeof(szModName) / sizeof(TCHAR)))
+            {
+                //_tprintf(TEXT("\t%s (0x%08X)\n"), szModName, hMods[i]);
+                int size = wcslen(szModName) + 1;
+                char vOut[MAX_PATH];
+                wcstombs_s(NULL, vOut, wcslen(szModName) + 1, szModName, wcslen(szModName) + 1);
+
+
+               /* printf("szModName: %s\n", vOut);
+                printf("DLLname: %s\n", DLLname);*/
+                // Print the module name and handle value.
+                if (strstr(vOut, DLLname) != NULL)
+                {
+                    _tprintf(TEXT("\t%s (0x%08X)\n"), szModName, hMods[i]);
+                }
+                //else
+                //{
+                //    _tprintf(TEXT("\tDLLname not found!!\n"));
+                //}
+                
+            }
+        }
+    }
+
+    // Release the handle to the process.
+
+    CloseHandle(hProcess);
+
+    return 0;
+}
+
+int main(void)
+{
+
+    isDllInjected(26764, "f4d0mon.dll");
+
+    /*char* ModName = "C:\\Users\\Nuno Pinto\\OneDrive\\Cyber_Security\\_STUDY\\Master_Reversing_Malware\\M11.TFM\\code\\Chapter03\\x64\\Release\\f4d0mon.dll";
+    char* DLL = "f4d0mon.dll";
+
+    char* result = strstr(ModName, DLL);
+    if(result != NULL)
+    {
+        printf("Result: %s\n", result);
+    }
+    else
+    {
+        printf("NOT FOUND!!");
+    }
+    */
 
     return 0;
 }
