@@ -71,13 +71,8 @@ int my_injection(int _pid, const char* _dllpath)
 		return Error("Failed to write to target process");
 
 	DWORD tid;
-	HANDLE hThread = ::CreateRemoteThread(hProcess,
-		nullptr,
-		0,
-		(LPTHREAD_START_ROUTINE)::GetProcAddress(::GetModuleHandle(L"Kernel32"), "LoadLibraryA"),
-		buffer,
-		0,
-		&tid);
+	LPTHREAD_START_ROUTINE lpsr = (LPTHREAD_START_ROUTINE)::GetProcAddress(::GetModuleHandle(L"Kernel32"), "LoadLibraryA");
+	HANDLE hThread = ::CreateRemoteThread(hProcess, nullptr, 0, lpsr, buffer, 0, &tid);
 	if (!hThread)
 		return Error("Failed to create remote thread");
 
@@ -92,6 +87,8 @@ int my_injection(int _pid, const char* _dllpath)
 
 	::CloseHandle(hThread);
 	::CloseHandle(hProcess);
+
+	return 0;
 
 }
 

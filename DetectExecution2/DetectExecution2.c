@@ -1,16 +1,20 @@
-// ProcList.cpp : This file contains the 'main' function. Program execution begins and ends there.
+﻿// ProcList.cpp : This file contains the 'main' function. Program execution begins and ends there.
 //
 #include <Windows.h>
 #include <stdio.h>
 #include <stdbool.h>
 #include <TlHelp32.h>
 #include <strsafe.h>
+//#include "..\Injector\Injector.h"
 
-#include "injector.h"
+#ifndef MAX_BUF
+#define MAX_BUF 200
+#endif
 
 int maxCOUNT = 256;
 bool first = true;
-const char* DLLPath = "C:\\Users\\Nuno Pinto\\OneDrive\\Cyber_Security\\_STUDY\\Master_Reversing_Malware\\M11.TFM\\code\\Chapter03\\x64\\Release\\f4d0mon.dll";
+char DLLMonitor[] = "f4d0mon.dll";
+char InjectorEXE[] = "Injector.exe";
 
 int Error(const char* text) {
 	printf("%s (%d)\n", text, GetLastError());
@@ -69,7 +73,8 @@ int copy_pids_name(_In_ wchar_t** pidNameSrc, _Inout_ wchar_t** pidNameDst, _In_
 	for (int i = 0;i < numCurrProcesses;i++) {
 		size_t size = wcslen(pidNameSrc[i]) + 1;
 		pidNameDst[i] = calloc(size, sizeof(wchar_t));
-		wcscpy_s(pidNameDst[i], size, pidNameSrc[i]);
+		if(pidNameDst[i] != 0)
+			wcscpy_s(pidNameDst[i], size, pidNameSrc[i]);
 	}
 	return 1;
 }
@@ -85,18 +90,23 @@ int get_pids_diff(	_In_ DWORD* ProcNumber1,
 					_In_ int iterator1,	
 					_In_ int iterator2, 
 					_Out_ DWORD* pids_change, 
-					_Out_ int* num_pids_changed) {
+					_Out_ int* num_pids_changed) 
+{
 
 	int k = 0;
-	for (int i = 0;i < iterator1;i++) {
+	for (int i = 0;i < iterator1;i++) 
+	{
 		bool exists = false;
-		for (int j = 0;j < iterator2;j++) {
-			if (ProcNumber1[i] == ProcNumber2[j]) {
+		for (int j = 0;j < iterator2;j++) 
+		{
+			if (ProcNumber1[i] == ProcNumber2[j]) 
+			{
 				exists = true;
 				break;
 			}
 		}
-		if (!exists) {
+		if (!exists) 
+		{
 			pids_change[k] = (DWORD)malloc(sizeof(DWORD));
 			pids_change[k] = ProcNumber1[i];
 			k++;
@@ -127,6 +137,20 @@ int main() {
 	int pids_change_size = 254;
 	DWORD* pids_change = calloc(pids_change_size,sizeof(DWORD)); // buffer to keep record of processes changed - It means terminated or created.
 
+	const int buffer_size = 400;
+	
+	char space[] = " ";
+	char DLLPath[150] = " ";
+	char path[MAX_BUF];
+
+	getcwd(path, MAX_BUF);
+
+	// Create fullpathfor DLLMonitor
+	strcat_s(DLLPath, 150, "\"");
+	strcat_s(DLLPath, 150, path);
+	strcat_s(DLLPath, 150, "\\");
+	strcat_s(DLLPath, 150, DLLMonitor);
+	strcat_s(DLLPath, 150, "\"");
 
 	for (;;) {
 		ZeroMemory(pids, maxCOUNT);
@@ -171,9 +195,21 @@ int main() {
 			wprintf(L"Processes started.\n");
 			int re = get_pids_diff(pids, pids_old, numCurrProcesses, numOldProcesses, pids_change, &num_pids_changed);
 
-			for (int i = 0; i < num_pids_changed;i++) {
+			for (int i = 0; i < num_pids_changed;i++) 
+			{
 				wprintf(L"\t%d\n", pids_change[i]);
-				my_injection(pids_change[i], DLLPath);
+				char command_line[400] = " ";
+				char pid[6];
+				_itoa_s(pids_change[i], pid, 6, 10);
+				// Create the command line to inject the DLL
+				strcat_s(command_line, buffer_size, InjectorEXE);
+				strcat_s(command_line, buffer_size, space);
+				strcat_s(command_line, buffer_size, pid);
+				strcat_s(command_line, buffer_size, space);
+				strcat_s(command_line, buffer_size, DLLPath);
+
+				printf(command_line);
+				system(command_line);
 			}
 		}
 
@@ -183,8 +219,10 @@ int main() {
 		}
 		
 		// Clean pids_old before fill it with more information
-		ZeroMemory(pids_old, maxCOUNT);
-		ZeroMemory(pidName_old, maxCOUNT);
+		if(pids_old != 0)
+			ZeroMemory(pids_old, maxCOUNT);
+		if(pidName_old != 0)
+			ZeroMemory(pidName_old, maxCOUNT);
 		// Set the old PID array
 		pids_old = pids;
 		numOldProcesses = numCurrProcesses;

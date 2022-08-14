@@ -157,7 +157,8 @@ NTSTATUS WINAPI BCryptEncryptHooked(
     //ThreadOwnerID = GetThreadOwnerIDbyID(::GetCurrentThreadId());
     DWORD MainThread = GetProcessMainThread(::GetCurrentProcessId());
     char message[128];
-    sprintf_s(message, "[F4D0] [%ws] [%ul] [%ld] --> call to BCryptEncrypt", ProcessName, MainThread, ::GetCurrentThreadId());
+    //sprintf_s(message, "[F4D0] [%ws] [%ul] [%ld] --> call to BCryptEncrypt", ProcessName, MainThread, ::GetCurrentThreadId());
+    sprintf_s(message, "[F4D0] [%ws] --> call to BCryptEncrypt", ProcessName);
     OutputDebugStringA(message);
 
     NTSTATUS status = BCryptEncryptOrg(hKey, pbInput, cbInput, pPaddingInfo, pbIV, cbIV, pbOutput, cbOutput, pcbResult, dwFlags);
@@ -219,8 +220,6 @@ int sayHello() {
 
 BOOL APIENTRY DllMain( HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReserved)
 {
-    LPCWSTR ProcessName;
-
     switch (ul_reason_for_call)
     {
         case DLL_PROCESS_ATTACH:
