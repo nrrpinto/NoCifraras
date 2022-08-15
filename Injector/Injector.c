@@ -326,8 +326,6 @@ int reflective_DLL_injection(_In_ HANDLE hProcess, _In_ const char* _dllpath)
 	CloseHandle(hFile);
 }
 
-
-
 int my_injection(int _pid, const char* _dllpath) 
 {
 	LPCWSTR ProcessName = L"";

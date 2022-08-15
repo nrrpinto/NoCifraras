@@ -12,6 +12,19 @@ LPCWSTR GetProcessNamebyID(_In_ DWORD ProcessID);
 DWORD GetThreadOwnerIDbyID(_In_ DWORD ThreadID);
 ////////////////////////////////////////////
 
+const int cps_CE_th = 20; // Calls per second CryptEncrypt threshold
+const int cps_BCE_th = 20; // Calls per second BCryptEncrypt threshold
+
+int cps_CE = 0; // Calls per second CryptEncrypt - to monitor current calls per second
+int cps_BCE = 0; // Calls per second BCryptEncrypt - to monitor current calls per second
+
+SYSTEMTIME ct_CE, ct_BCE, ot_CE, ot_BCE; // current time (ct), old time (ot), difference (df) for CryptEncrypt and BCryptEncrypt
+
+BOOL CE_warn = TRUE;
+BOOL BCE_warn = TRUE;
+
+BOOL first_CE = TRUE;
+BOOL first_BCE = TRUE;
 
 
 
@@ -66,7 +79,6 @@ DWORD GetProcessMainThread(DWORD dwProcID)
 
     return dwMainThreadID;
 }
-
 
 /*
 */
@@ -126,6 +138,107 @@ DWORD GetThreadOwnerIDbyID(_In_ DWORD ThreadID)
     return OwnerProcessID;
 }
 
+// Calculates difference of time, first parameter minus second parameter
+
+BOOL count_BCryptEncrypt(LPCWSTR ProcessName)
+{
+    if (first_BCE)
+    {
+        GetSystemTime(&ot_BCE);
+        GetSystemTime(&ct_BCE);
+        first_BCE = FALSE;
+        cps_BCE++;
+        return TRUE;
+    }
+
+    GetSystemTime(&ct_BCE);
+
+    // TO REMOVE - JUST DEBUG
+    //char message1[128];
+    //sprintf_s(message1, "[F4D0] [%ws] [OT: %04d-%02d-%02d %02d:%02d:%02d] [CT: %04d-%02d-%02d %02d:%02d:%02d] [Total: %d]", ProcessName, 
+    //    ot_BCE.wYear, ot_BCE.wMonth, ot_BCE.wDay, ot_BCE.wHour, ot_BCE.wMinute, ot_BCE.wSecond, 
+    //    ct_BCE.wYear, ct_BCE.wMonth, ct_BCE.wDay, ct_BCE.wHour, ct_BCE.wMinute, ct_BCE.wSecond,
+    //    cps_BCE);
+    //OutputDebugStringA(message1);
+
+    if (ct_BCE.wSecond > ot_BCE.wSecond || ct_BCE.wMinute > ot_BCE.wMinute)
+    {
+        char message[128];
+        sprintf_s(message, "[F4D0] [BCryptEncrypt] [%04d-%02d-%02d %02d:%02d:%02d] [%ws] [Total: %d]", ot_BCE.wYear, ot_BCE.wMonth, ot_BCE.wDay, ot_BCE.wHour, ot_BCE.wMinute, ot_BCE.wSecond, ProcessName, cps_BCE);
+        OutputDebugStringA(message);
+
+        // reset the counter for the next period of time
+        cps_BCE = 0;
+        BCE_warn = TRUE;
+    }
+    else
+    {
+        cps_BCE++;
+    }
+
+    if (cps_BCE > cps_BCE_th && BCE_warn)
+    {
+        char message[128];
+        sprintf_s(message, "[F4D0] [BCryptEncrypt] [%04d-%02d-%02d %02d:%02d:%02d] [%ws] [Total: %d] Crossed the threshold!", ct_BCE.wYear, ct_BCE.wMonth, ct_BCE.wDay, ct_BCE.wHour, ct_BCE.wMinute, ct_BCE.wSecond, ProcessName, cps_BCE);
+        OutputDebugStringA(message);
+        BCE_warn = FALSE;
+    }
+
+    // Copy current time to old time
+    ot_BCE = ct_BCE;
+    return TRUE;
+}
+
+BOOL count_CryptEncrypt(LPCWSTR ProcessName)
+{
+
+    if (first_CE)
+    {
+        GetSystemTime(&ot_CE);
+        GetSystemTime(&ct_CE);
+        first_CE = FALSE;
+        cps_CE++;
+        return TRUE;
+    }
+
+    GetSystemTime(&ct_CE);
+    
+    // TO REMOVE - JUST DEBUG
+    //char message1[128];
+    //sprintf_s(message1, "[F4D0] [%ws] [OT: %04d-%02d-%02d %02d:%02d:%02d] [CT: %04d-%02d-%02d %02d:%02d:%02d] [Total: %d]", ProcessName, 
+    //    ot_CE.wYear, ot_CE.wMonth, ot_CE.wDay, ot_CE.wHour, ot_CE.wMinute, ot_CE.wSecond, 
+    //    ct_CE.wYear, ct_CE.wMonth, ct_CE.wDay, ct_CE.wHour, ct_CE.wMinute, ct_CE.wSecond,
+    //    cps_CE);
+    //OutputDebugStringA(message1);
+
+    if (ct_CE.wSecond > ot_CE.wSecond || ct_CE.wMinute > ot_CE.wMinute)
+    {
+        char message[128];
+        sprintf_s(message, "[F4D0] [CryptEncrypt] [%04d-%02d-%02d %02d:%02d:%02d] [%ws] [Total: %d]", ot_CE.wYear, ot_CE.wMonth, ot_CE.wDay, ot_CE.wHour, ot_CE.wMinute, ot_CE.wSecond, ProcessName, cps_CE);
+        OutputDebugStringA(message);
+
+        // reset the counter for the next period of time
+        cps_CE = 0;
+        CE_warn = TRUE;
+    }
+    else
+    {
+        cps_CE++;
+    }
+
+    if (cps_CE > cps_CE_th && CE_warn)
+    {
+        char message[128];
+        sprintf_s(message, "[F4D0] [CryptEncrypt] [%04d-%02d-%02d %02d:%02d:%02d] [%ws] [Total: %d] Crossed the threshold!", ct_CE.wYear, ct_CE.wMonth, ct_CE.wDay, ct_CE.wHour, ct_CE.wMinute, ct_CE.wSecond, ProcessName, cps_CE);
+        OutputDebugStringA(message);
+        CE_warn = FALSE;
+    }
+
+    // Copy current time to old time
+    ot_CE = ct_CE;
+    return TRUE;
+}
+
 /////////////////////////////////////////////////////////////////
  ///////////////////////////////////////////////////////////////
   /////////////////////////////////////////////////////////////
@@ -156,14 +269,16 @@ NTSTATUS WINAPI BCryptEncryptHooked(
     _Out_   ULONG* pcbResult,
     _In_    ULONG               dwFlags) {
     
+    //DWORD ThreadOwnerID = 0;
+    //DWORD MainThread = GetProcessMainThread(::GetCurrentProcessId());
+    //char message[128];
+    //sprintf_s(message, "[F4D0] [%ws] [%ul] [%ld] --> [BCryptEncrypt]", ProcessName, MainThread, ::GetCurrentThreadId());
+    //OutputDebugStringA(message);
+    
     LPCWSTR ProcessName = L"";
-    DWORD ThreadOwnerID = 0;
     ProcessName = GetProcessNamebyID(::GetCurrentProcessId());
-    DWORD MainThread = GetProcessMainThread(::GetCurrentProcessId());
-    char message[128];
-    sprintf_s(message, "[F4D0] [%ws] [%ul] [%ld] --> [BCryptEncrypt]", ProcessName, MainThread, ::GetCurrentThreadId());
-    //sprintf_s(message, "[F4D0] [%ws] --> call to BCryptEncrypt", ProcessName);
-    OutputDebugStringA(message);
+
+    count_BCryptEncrypt(ProcessName);
 
     NTSTATUS status = BCryptEncryptOrg(hKey, pbInput, cbInput, pPaddingInfo, pbIV, cbIV, pbOutput, cbOutput, pcbResult, dwFlags);
 
@@ -180,15 +295,17 @@ BOOL WINAPI CryptEncryptHooked(
     _Inout_ DWORD* pdwDataLen,
     _In_ DWORD      dwBufLen) {
 
+    //DWORD ThreadOwnerID = 0;
+    //DWORD MainThread = GetProcessMainThread(::GetCurrentProcessId());
+    //char message[128];
+    //sprintf_s(message, "[F4D0] [%ws] [%ul] [%ld] --> [CryptEncrypt]", ProcessName, MainThread, ::GetCurrentThreadId());
+    //OutputDebugStringA(message);
+
     LPCWSTR ProcessName = L"";
-    DWORD ThreadOwnerID = 0;
     ProcessName = GetProcessNamebyID(::GetCurrentProcessId());
-    DWORD MainThread = GetProcessMainThread(::GetCurrentProcessId());
-    char message[128];
-    sprintf_s(message, "[F4D0] [%ws] [%ul] [%ld] --> [CryptEncrypt]", ProcessName, MainThread, ::GetCurrentThreadId());
-    //sprintf_s(message, "[F4D0] [%ws] --> call to BCryptEncrypt", ProcessName);
-    OutputDebugStringA(message);
     
+    count_CryptEncrypt(ProcessName);
+
     BOOL status = CryptEncryptOrg(hKey, hHash, Final, dwFlags, pbData, pdwDataLen, dwBufLen);
 
     return status;
@@ -237,6 +354,9 @@ BOOL APIENTRY DllMain( HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpRese
                 char message[64];
                 sprintf_s(message, "[F4D0] [%ws] DLL_PROCESS_ATTACH ERROR Attaching", ProcessName);
                 OutputDebugStringA(message);
+
+                // TODO: check if the application is on a white list, and save the state into a BOOL.
+                // it can be used later today if the application starts to make calls to CryptEncrypt API.
             }
             else
             {
