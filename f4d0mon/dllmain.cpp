@@ -12,6 +12,11 @@ LPCWSTR GetProcessNamebyID(_In_ DWORD ProcessID);
 DWORD GetThreadOwnerIDbyID(_In_ DWORD ThreadID);
 ////////////////////////////////////////////
 
+
+
+
+////////////////////////////////////////////
+
 #ifndef MAKEULONGLONG
 #define MAKEULONGLONG(ldw, hdw) ((ULONGLONG(hdw) << 32) | ((ldw) & 0xFFFFFFFF))
 #endif
@@ -154,11 +159,10 @@ NTSTATUS WINAPI BCryptEncryptHooked(
     LPCWSTR ProcessName = L"";
     DWORD ThreadOwnerID = 0;
     ProcessName = GetProcessNamebyID(::GetCurrentProcessId());
-    //ThreadOwnerID = GetThreadOwnerIDbyID(::GetCurrentThreadId());
     DWORD MainThread = GetProcessMainThread(::GetCurrentProcessId());
     char message[128];
-    //sprintf_s(message, "[F4D0] [%ws] [%ul] [%ld] --> call to BCryptEncrypt", ProcessName, MainThread, ::GetCurrentThreadId());
-    sprintf_s(message, "[F4D0] [%ws] --> call to BCryptEncrypt", ProcessName);
+    sprintf_s(message, "[F4D0] [%ws] [%ul] [%ld] --> [BCryptEncrypt]", ProcessName, MainThread, ::GetCurrentThreadId());
+    //sprintf_s(message, "[F4D0] [%ws] --> call to BCryptEncrypt", ProcessName);
     OutputDebugStringA(message);
 
     NTSTATUS status = BCryptEncryptOrg(hKey, pbInput, cbInput, pPaddingInfo, pbIV, cbIV, pbOutput, cbOutput, pcbResult, dwFlags);
@@ -177,9 +181,12 @@ BOOL WINAPI CryptEncryptHooked(
     _In_ DWORD      dwBufLen) {
 
     LPCWSTR ProcessName = L"";
+    DWORD ThreadOwnerID = 0;
     ProcessName = GetProcessNamebyID(::GetCurrentProcessId());
-    char message[64];
-    sprintf_s(message, "[F4D0] [%ws] --> call to CryptEncrypt", ProcessName);
+    DWORD MainThread = GetProcessMainThread(::GetCurrentProcessId());
+    char message[128];
+    sprintf_s(message, "[F4D0] [%ws] [%ul] [%ld] --> [CryptEncrypt]", ProcessName, MainThread, ::GetCurrentThreadId());
+    //sprintf_s(message, "[F4D0] [%ws] --> call to BCryptEncrypt", ProcessName);
     OutputDebugStringA(message);
     
     BOOL status = CryptEncryptOrg(hKey, hHash, Final, dwFlags, pbData, pdwDataLen, dwBufLen);
@@ -242,9 +249,21 @@ BOOL APIENTRY DllMain( HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpRese
             break;
         case DLL_THREAD_ATTACH:
             if (!HookFunctions())
-                OutputDebugStringA("[F4D0] DLL_THREAD_ATTACH ERROR Attaching");
+            {
+                LPCWSTR ProcessName = L"";
+                ProcessName = GetProcessNamebyID(::GetCurrentProcessId());
+                char message[64];
+                sprintf_s(message, "[F4D0] [%ws] DLL_THREAD_ATTACH ERROR Attaching", ProcessName);
+                OutputDebugStringA(message);
+            }
             else
-                OutputDebugStringA("[F4D0] DLL_THREAD_ATTACH SUCCESS Attaching");
+            {
+                LPCWSTR ProcessName = L"";
+                ProcessName = GetProcessNamebyID(::GetCurrentProcessId());
+                char message[64];
+                sprintf_s(message, "[F4D0] [%ws] DLL_THREAD_ATTACH SUCCESS Attaching", ProcessName);
+                OutputDebugStringA(message);
+            }
             break;
         case DLL_THREAD_DETACH:
             /*if (!DeHookFunctions())

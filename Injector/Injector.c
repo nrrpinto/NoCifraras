@@ -35,6 +35,34 @@ DWORD GetProcessBit(_In_ HANDLE ProcessHandle)
 	return 0;
 }
 
+/*
+*/
+LPCWSTR GetProcessNamebyID(_In_ DWORD ProcessID)
+{
+	LPCWSTR ProcessName = L"";
+
+	HANDLE hProcessSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+
+	if (hProcessSnap != INVALID_HANDLE_VALUE)
+	{
+		PROCESSENTRY32W ProcessEntry = { 0 };
+
+		ProcessEntry.dwSize = sizeof(ProcessEntry);
+
+		if (Process32FirstW(hProcessSnap, &ProcessEntry))
+		{
+			do {
+				if (ProcessEntry.th32ProcessID == ProcessID)
+				{
+					ProcessName = ProcessEntry.szExeFile;
+					break;
+				}
+			} while (Process32NextW(hProcessSnap, &ProcessEntry));
+		}
+		CloseHandle(hProcessSnap);
+	}
+	return ProcessName;
+}
 
 int isDllInjected(HANDLE hProcess, char* DLLname)
 {
@@ -302,35 +330,38 @@ int reflective_DLL_injection(_In_ HANDLE hProcess, _In_ const char* _dllpath)
 
 int my_injection(int _pid, const char* _dllpath) 
 {
+	LPCWSTR ProcessName = L"";
+	ProcessName = GetProcessNamebyID(_pid);
+
 	if (SetProcessPrivilege(GetCurrentProcess(), L"SeDebugPrivilege", TRUE, NULL)) // Нужны права админа, иначе ошибка ERROR_PRIVILEGE_NOT_HELD
-		wprintf_s(L"Successfully set of the Debug Privilege!\n");
+		printf("[INJECTOR] [MY_INJECTION] [PID: %d] [PNAME: %ws] Successfully set of the Debug Privilege!\n", _pid, ProcessName);
 	else
-		wprintf_s(L"Error setting Debug Priviledge! Please try to execute it in Administrator mode.\n");
+		printf("[INJECTOR] [MY_INJECTION] [PID: %d] [PNAME: %ws] Error setting Debug Priviledge! Try with Administrator account.\n", _pid, ProcessName);
 
 	// Open a handle to the target process
 	HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, _pid);
 	if (!hProcess)
 		return Error("Failed to open process");
 
-	//// Standard DLL Injection
-	//standard_DLL_injection(hProcess, _pid, _dllpath);
-	//
-	//if (isDllInjected(hProcess, _dllpath))
-	//{
-	//	printf("[my_injection] Successfully injected using standard DLL injection!\n");
-	//	CloseHandle(hProcess);
-	//	return TRUE;
-	//}
-
-	// Reflective DLL Injection
-	reflective_DLL_injection(hProcess,_dllpath);
+	// Standard DLL Injection
+	standard_DLL_injection(hProcess, _pid, _dllpath);
 	
 	if (isDllInjected(hProcess, _dllpath))
 	{
-		printf("[my_injection] Successfully injected using Reflective DLL injection!\n");
+		printf("[INJECTOR] [MY_INJECTION] [PID: %d] [PNAME: %ws] Successfully injected using standard DLL injection!\n", _pid, ProcessName);
 		CloseHandle(hProcess);
 		return TRUE;
 	}
+
+	// Reflective DLL Injection
+	//reflective_DLL_injection(hProcess,_dllpath);
+	//
+	//if (isDllInjected(hProcess, _dllpath))
+	//{
+	//	printf("[my_injection] Successfully injected using Reflective DLL injection!\n");
+	//	CloseHandle(hProcess);
+	//	return TRUE;
+	//}
 
 	// Close process handle
 	CloseHandle(hProcess);

@@ -13,12 +13,68 @@
 
 int maxCOUNT = 256;
 bool first = true;
-char DLLMonitor[] = "f4d0mon.dll";
-char InjectorEXE[] = "Injector.exe";
+char DLLMonitor86[] = "f4d0mon86.dll";
+char DLLMonitor64[] = "f4d0mon64.dll";
+char InjectorEXE86[] = "Injector86.exe";
+char InjectorEXE64[] = "Injector64.exe";
 
 int Error(const char* text) {
 	printf("%s (%d)\n", text, GetLastError());
 	return 1;
+}
+
+/*
+*/
+DWORD GetProcessBit(_In_ int ProcessID)
+{
+	typedef BOOL(WINAPI* pfnIsWow64Process)(HANDLE, PBOOL);
+
+	// Open a handle to the target process
+	HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, ProcessID);
+	if (!hProcess)
+		return Error("[GetProcessBit] Failed to open process");
+
+	BOOL IsWoW64 = FALSE;
+
+	HMODULE hModule = GetModuleHandleW(L"kernel32");
+
+	if (hModule)
+	{
+		pfnIsWow64Process IsWow64Process = (pfnIsWow64Process)GetProcAddress(hModule, "IsWow64Process");
+
+		if (IsWow64Process(hProcess, &IsWoW64))
+			return IsWoW64 ? 32 : 64;
+	}
+	return 0;
+}
+
+/*
+*/
+LPCWSTR GetProcessNamebyID(_In_ DWORD ProcessID)
+{
+	LPCWSTR ProcessName = L"";
+
+	HANDLE hProcessSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+
+	if (hProcessSnap != INVALID_HANDLE_VALUE)
+	{
+		PROCESSENTRY32W ProcessEntry = { 0 };
+
+		ProcessEntry.dwSize = sizeof(ProcessEntry);
+
+		if (Process32FirstW(hProcessSnap, &ProcessEntry))
+		{
+			do {
+				if (ProcessEntry.th32ProcessID == ProcessID)
+				{
+					ProcessName = ProcessEntry.szExeFile;
+					break;
+				}
+			} while (Process32NextW(hProcessSnap, &ProcessEntry));
+		}
+		CloseHandle(hProcessSnap);
+	}
+	return ProcessName;
 }
 
 int ReadProcesses(_Inout_ DWORD* pids, _Inout_ wchar_t** pidName) {
@@ -64,6 +120,7 @@ int ReadProcesses(_Inout_ DWORD* pids, _Inout_ wchar_t** pidName) {
 		i++;
 	} while (Process32Next(hSnapshot, &pe));
 
+	
 	CloseHandle(hSnapshot);
 
 	return i;
@@ -72,7 +129,7 @@ int ReadProcesses(_Inout_ DWORD* pids, _Inout_ wchar_t** pidName) {
 int copy_pids_name(_In_ wchar_t** pidNameSrc, _Inout_ wchar_t** pidNameDst, _In_ int numCurrProcesses) {
 	for (int i = 0;i < numCurrProcesses;i++) {
 		size_t size = wcslen(pidNameSrc[i]) + 1;
-		pidNameDst[i] = calloc(size, sizeof(wchar_t));
+		//pidNameDst[i] = calloc(size, sizeof(wchar_t));
 		if(pidNameDst[i] != 0)
 			wcscpy_s(pidNameDst[i], size, pidNameSrc[i]);
 	}
@@ -107,7 +164,7 @@ int get_pids_diff(	_In_ DWORD* ProcNumber1,
 		}
 		if (!exists) 
 		{
-			pids_change[k] = (DWORD)malloc(sizeof(DWORD));
+			//pids_change[k] = (DWORD)malloc(sizeof(DWORD));
 			pids_change[k] = ProcNumber1[i];
 			k++;
 		}
@@ -135,29 +192,27 @@ int main() {
 	// numOldProcesses - contains the number of old processes
 	int numOldProcesses = 0;
 	int pids_change_size = 254;
-	DWORD* pids_change = calloc(pids_change_size,sizeof(DWORD)); // buffer to keep record of processes changed - It means terminated or created.
+	DWORD* pids_change = (DWORD *)calloc(pids_change_size,sizeof(DWORD)); // buffer to keep record of processes changed - It means terminated or created.
 
 	const int buffer_size = 400;
 	
 	char space[] = " ";
-	char DLLPath[150] = " ";
+	
 	char path[MAX_BUF];
 
 	getcwd(path, MAX_BUF);
 
-	// Create fullpathfor DLLMonitor
-	strcat_s(DLLPath, 150, "\"");
-	strcat_s(DLLPath, 150, path);
-	strcat_s(DLLPath, 150, "\\");
-	strcat_s(DLLPath, 150, DLLMonitor);
-	strcat_s(DLLPath, 150, "\"");
+	int numCurrProcesses = 0;
+	int num_pids_changed = 0;
+
+	
 
 	for (;;) {
 		ZeroMemory(pids, maxCOUNT);
 		ZeroMemory(pidName, maxCOUNT);
 		
 		// numCurrProcesses - contains the number of current processes
-		int numCurrProcesses = 0;
+		numCurrProcesses = 0;
 
 		if (pidName) {
 			numCurrProcesses = ReadProcesses(pids, pidName);
@@ -185,31 +240,67 @@ int main() {
 		// wprintf(L"numCurrProcesses %d\n", numCurrProcesses);
 		// wprintf(L"numOldProcesses %d\n", numOldProcesses);
 
-		int num_pids_changed = 0;
+		num_pids_changed = 0;
 
 		if (numOldProcesses > 0 && numCurrProcesses > 0 && numOldProcesses > numCurrProcesses) {
 			wprintf(L"Processes terminated.\n");
 			int re = get_pids_diff(pids_old, pids, numOldProcesses, numCurrProcesses, pids_change, &num_pids_changed);
 		}
 		else if (numOldProcesses > 0 && numCurrProcesses > 0 && numOldProcesses < numCurrProcesses) {
-			wprintf(L"Processes started.\n");
+			wprintf(L"#########################################################################\n");
+			
 			int re = get_pids_diff(pids, pids_old, numCurrProcesses, numOldProcesses, pids_change, &num_pids_changed);
 
 			for (int i = 0; i < num_pids_changed;i++) 
 			{
-				wprintf(L"\t%d\n", pids_change[i]);
+				LPCWSTR ProcessName = L"";
+				ProcessName = GetProcessNamebyID(pids_change[i]);
+				wprintf(L"[MAIN] [Processes started] [PID: %d] [PNAME: %ws] \n", pids_change[i], ProcessName);
+
+				DWORD bitness = GetProcessBit(pids_change[i]);
+
+				// Create fullpathfor DLLMonitor
+				char DLLPath[150] = " ";
+				strcat_s(DLLPath, 150, "\"");
+				strcat_s(DLLPath, 150, path);
+				strcat_s(DLLPath, 150, "\\");
+				if(bitness == 32)
+					strcat_s(DLLPath, 150, DLLMonitor86);
+				else if (bitness == 64)
+					strcat_s(DLLPath, 150, DLLMonitor64);
+				else
+				{
+					printf("[MAIN] [PID: %d] [PNAME: %ws] PROBLEM IDENTIFYING BITNESS OF THE APPLICATION!\n", pids_change[i], ProcessName);
+					continue;
+				}
+				strcat_s(DLLPath, 150, "\"");
+
+
+				
 				char command_line[400] = " ";
 				char pid[6];
 				_itoa_s(pids_change[i], pid, 6, 10);
+
 				// Create the command line to inject the DLL
-				strcat_s(command_line, buffer_size, InjectorEXE);
+				if (bitness == 32)
+					strcat_s(command_line, buffer_size, InjectorEXE86);
+				else if (bitness == 64)
+					strcat_s(command_line, buffer_size, InjectorEXE64);
+				else
+				{
+					printf("[main] PROBLEM IDENTIFYING BITNESS OF THE APPLICATION!\n");
+					continue;
+				}
 				strcat_s(command_line, buffer_size, space);
 				strcat_s(command_line, buffer_size, pid);
 				strcat_s(command_line, buffer_size, space);
 				strcat_s(command_line, buffer_size, DLLPath);
 
-				printf(command_line);
+				printf(command_line);printf("\n");
 				system(command_line);
+				
+				VirtualFree(command_line, 0, MEM_RELEASE);
+				VirtualFree(DLLPath, 0, MEM_RELEASE);
 			}
 		}
 
@@ -219,10 +310,12 @@ int main() {
 		}
 		
 		// Clean pids_old before fill it with more information
-		if(pids_old != 0)
+		/*if(pids_old != 0)
 			ZeroMemory(pids_old, maxCOUNT);
 		if(pidName_old != 0)
-			ZeroMemory(pidName_old, maxCOUNT);
+			ZeroMemory(pidName_old, maxCOUNT);*/
+		ZeroMemory(pids_old, maxCOUNT);
+		ZeroMemory(pidName_old, maxCOUNT);
 		// Set the old PID array
 		pids_old = pids;
 		numOldProcesses = numCurrProcesses;
