@@ -138,9 +138,19 @@ DWORD GetThreadOwnerIDbyID(_In_ DWORD ThreadID)
     return OwnerProcessID;
 }
 
-// Calculates difference of time, first parameter minus second parameter
+BOOL KillProcess(DWORD ProcessID)
+{
+    HANDLE hProcess = OpenProcess(PROCESS_TERMINATE, FALSE, ProcessID);
+    if (hProcess == NULL)
+        return FALSE;
 
-BOOL count_BCryptEncrypt(LPCWSTR ProcessName)
+    BOOL result = TerminateProcess(hProcess, 1);  // Alternetively use ExitProcess
+    CloseHandle(hProcess);
+    
+    return result;
+}
+
+BOOL CountBCryptEncrypt(LPCWSTR ProcessName)
 {
     if (first_BCE)
     {
@@ -152,14 +162,6 @@ BOOL count_BCryptEncrypt(LPCWSTR ProcessName)
     }
 
     GetSystemTime(&ct_BCE);
-
-    // TO REMOVE - JUST DEBUG
-    //char message1[128];
-    //sprintf_s(message1, "[F4D0] [%ws] [OT: %04d-%02d-%02d %02d:%02d:%02d] [CT: %04d-%02d-%02d %02d:%02d:%02d] [Total: %d]", ProcessName, 
-    //    ot_BCE.wYear, ot_BCE.wMonth, ot_BCE.wDay, ot_BCE.wHour, ot_BCE.wMinute, ot_BCE.wSecond, 
-    //    ct_BCE.wYear, ct_BCE.wMonth, ct_BCE.wDay, ct_BCE.wHour, ct_BCE.wMinute, ct_BCE.wSecond,
-    //    cps_BCE);
-    //OutputDebugStringA(message1);
 
     if (ct_BCE.wSecond > ot_BCE.wSecond || ct_BCE.wMinute > ot_BCE.wMinute)
     {
@@ -189,7 +191,7 @@ BOOL count_BCryptEncrypt(LPCWSTR ProcessName)
     return TRUE;
 }
 
-BOOL count_CryptEncrypt(LPCWSTR ProcessName)
+BOOL CountCryptEncrypt(LPCWSTR ProcessName)
 {
 
     if (first_CE)
@@ -203,14 +205,6 @@ BOOL count_CryptEncrypt(LPCWSTR ProcessName)
 
     GetSystemTime(&ct_CE);
     
-    // TO REMOVE - JUST DEBUG
-    //char message1[128];
-    //sprintf_s(message1, "[F4D0] [%ws] [OT: %04d-%02d-%02d %02d:%02d:%02d] [CT: %04d-%02d-%02d %02d:%02d:%02d] [Total: %d]", ProcessName, 
-    //    ot_CE.wYear, ot_CE.wMonth, ot_CE.wDay, ot_CE.wHour, ot_CE.wMinute, ot_CE.wSecond, 
-    //    ct_CE.wYear, ct_CE.wMonth, ct_CE.wDay, ct_CE.wHour, ct_CE.wMinute, ct_CE.wSecond,
-    //    cps_CE);
-    //OutputDebugStringA(message1);
-
     if (ct_CE.wSecond > ot_CE.wSecond || ct_CE.wMinute > ot_CE.wMinute)
     {
         char message[128];
@@ -278,7 +272,7 @@ NTSTATUS WINAPI BCryptEncryptHooked(
     LPCWSTR ProcessName = L"";
     ProcessName = GetProcessNamebyID(::GetCurrentProcessId());
 
-    count_BCryptEncrypt(ProcessName);
+    CountBCryptEncrypt(ProcessName);
 
     NTSTATUS status = BCryptEncryptOrg(hKey, pbInput, cbInput, pPaddingInfo, pbIV, cbIV, pbOutput, cbOutput, pcbResult, dwFlags);
 
@@ -304,7 +298,7 @@ BOOL WINAPI CryptEncryptHooked(
     LPCWSTR ProcessName = L"";
     ProcessName = GetProcessNamebyID(::GetCurrentProcessId());
     
-    count_CryptEncrypt(ProcessName);
+    CountCryptEncrypt(ProcessName);
 
     BOOL status = CryptEncryptOrg(hKey, hHash, Final, dwFlags, pbData, pdwDataLen, dwBufLen);
 
