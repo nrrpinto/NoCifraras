@@ -19,9 +19,9 @@ LPCWSTR GetProcessNamebyID(_In_ DWORD ProcessID);
 DWORD GetThreadOwnerIDbyID(_In_ DWORD ThreadID);
 ////////////////////////////////////////////
 
-const int cps_CE_th = 30; // Calls per second CryptEncrypt threshold
-const int cps_BCE_th = 30; // Calls per second BCryptEncrypt threshold
-const int cps_NTCF_th = 30; // Calls per second NtCreateFile threshold
+const int cps_CE_th = 1; // Calls per second CryptEncrypt threshold
+const int cps_BCE_th = 90000; // Calls per second BCryptEncrypt threshold
+const int cps_NTCF_th = 90000; // Calls per second NtCreateFile threshold
 
 int cps_CE = 0; // Calls per second CryptEncrypt - to monitor current calls per second
 int cps_BCE = 0; // Calls per second BCryptEncrypt - to monitor current calls per second
@@ -379,19 +379,13 @@ NTSTATUS WINAPI BCryptEncryptHooked(
 
 //CryptEncrypt
 BOOL WINAPI CryptEncryptHooked(
-    _In_ HCRYPTKEY  hKey,
-    _In_ HCRYPTHASH hHash,
-    _In_ BOOL       Final,
-    _In_ DWORD      dwFlags,
-    _Inout_ BYTE* pbData,
-    _Inout_ DWORD* pdwDataLen,
-    _In_ DWORD      dwBufLen) {
-
-    //DWORD ThreadOwnerID = 0;
-    //DWORD MainThread = GetProcessMainThread(::GetCurrentProcessId());
-    //char message[128];
-    //sprintf_s(message, "[F4D0] [%ws] [%ul] [%ld] --> [CryptEncrypt]", ProcessName, MainThread, ::GetCurrentThreadId());
-    //OutputDebugStringA(message);
+    _In_    HCRYPTKEY   hKey,
+    _In_    HCRYPTHASH  hHash,
+    _In_    BOOL        Final,
+    _In_    DWORD       dwFlags,
+    _Inout_ BYTE*       pbData,
+    _Inout_ DWORD*      pdwDataLen,
+    _In_    DWORD       dwBufLen) {
 
     // Run when the application is not white listed
     if (!white_listed)

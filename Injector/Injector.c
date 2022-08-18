@@ -12,8 +12,6 @@ int Error(const char* msg) {
 	return FALSE;
 }
 
-/*
-*/
 DWORD GetProcessBit(_In_ HANDLE ProcessHandle)
 {
 	typedef BOOL(WINAPI* pfnIsWow64Process)(HANDLE, PBOOL);
@@ -35,8 +33,7 @@ DWORD GetProcessBit(_In_ HANDLE ProcessHandle)
 	return 0;
 }
 
-/*
-*/
+
 LPCWSTR GetProcessNamebyID(_In_ DWORD ProcessID)
 {
 	LPCWSTR ProcessName = L"";
@@ -71,7 +68,6 @@ int isDllInjected(HANDLE hProcess, char* DLLname)
 	unsigned int i;
 
 	// Get a list of all the modules in this process.
-
 	if (EnumProcessModules(hProcess, hMods, sizeof(hMods), &cbNeeded))
 	{
 		for (i = 0; i < (cbNeeded / sizeof(HMODULE)); i++)
@@ -179,8 +175,6 @@ int standard_DLL_injection(_In_ HANDLE hProcess, _In_ int _pid, _In_ const char*
 	if (!hThread)
 		return Error("Failed to create remote thread");
 
-	// Print information about the thread that loads the DLL
-	// printf("Thread %u created successfully!\n", tid);
 	if (WAIT_OBJECT_0 == WaitForSingleObject(hThread, 10000))
 		printf("[INJECTOR] Thread exited.\n");
 	else

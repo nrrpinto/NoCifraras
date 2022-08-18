@@ -35,8 +35,6 @@ int Error(const char* text) {
 	return 1;
 }
 
-/*
-*/
 DWORD GetProcessBit(_In_ int ProcessID)
 {
 	typedef BOOL(WINAPI* pfnIsWow64Process)(HANDLE, PBOOL);
@@ -60,8 +58,6 @@ DWORD GetProcessBit(_In_ int ProcessID)
 	return 0;
 }
 
-/*
-*/
 LPCWSTR GetProcessNamebyID(_In_ DWORD ProcessID)
 {
 	LPCWSTR ProcessName = L"";
@@ -393,11 +389,8 @@ int ReadProcesses(_Inout_ DWORD* pids, _Inout_ wchar_t** pidName) {
 		return Error("Failed in Process32First");
 
 	int i = 0;
-	
 
 	do {
-		//printf("PID:%6d (PPID:%6d): %30ws (Threads=%d) (Priority=%d)\n",
-		//	pe.th32ProcessID, pe.th32ParentProcessID, pe.szExeFile, pe.cntThreads, pe.pcPriClassBase);
 		if (i > maxCOUNT - 1) return 1;
 		
 		// Captured PID
@@ -413,12 +406,6 @@ int ReadProcesses(_Inout_ DWORD* pids, _Inout_ wchar_t** pidName) {
 		else {
 			wprintf(L"A pidName[i] is NULL");
 		}
-		
-		//pidName[i] = pe.szExeFile;
-
-		//wprintf(L"## PID: %5d | Name:  %10ws\n", pids[i], pidName[i]);
-
-		// LAST
 		i++;
 	} while (Process32Next(hSnapshot, &pe));
 
@@ -506,9 +493,6 @@ int main() {
 
 	int numCurrProcesses = 0;
 	int num_pids_changed = 0;
-
-	
-	
 
 	for (;;) {
 		ZeroMemory(pids, maxCOUNT);
