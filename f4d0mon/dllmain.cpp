@@ -19,9 +19,9 @@ LPCWSTR GetProcessNamebyID(_In_ DWORD ProcessID);
 DWORD GetThreadOwnerIDbyID(_In_ DWORD ThreadID);
 ////////////////////////////////////////////
 
-const int cps_CE_th = 30; // Calls per second CryptEncrypt threshold
-const int cps_BCE_th = 30; // Calls per second BCryptEncrypt threshold
-const int cps_NTCF_th = 30; // Calls per second NtCreateFile threshold
+const int cps_CE_th = 1; // Calls per second CryptEncrypt threshold
+const int cps_BCE_th = 90000; // Calls per second BCryptEncrypt threshold
+const int cps_NTCF_th = 90000; // Calls per second NtCreateFile threshold
 
 int cps_CE = 0; // Calls per second CryptEncrypt - to monitor current calls per second
 int cps_BCE = 0; // Calls per second BCryptEncrypt - to monitor current calls per second
@@ -199,23 +199,23 @@ BOOL CountBCryptEncrypt()
         cps_BCE++;
     }
 
-    if (cps_BCE > cps_BCE_th && cps_NTCF > cps_NTCF_th && BCE_warn)
-    {
-        char message[128];
-        sprintf_s(message, "[F4D0] [%04d-%02d-%02d %02d:%02d:%02d] [%ws] [BCryptEncrypt] [WARNING] [BCryptEncrypt Total: %d] [NtCreateFile Total: %d] Crossed the threshold!", ct_BCE.wYear, ct_BCE.wMonth, ct_BCE.wDay, ct_BCE.wHour, ct_BCE.wMinute, ct_BCE.wSecond, ProcessName, cps_BCE, cps_NTCF);
-        OutputDebugStringA(message);
-        BCE_warn = FALSE;
-        HANDLE pHandle = OpenProcess(PROCESS_TERMINATE, FALSE, GetCurrentProcessId());
-        if (pHandle != NULL)
-        {
-            char message[128];
-            sprintf_s(message, "[F4D0] [%04d-%02d-%02d %02d:%02d:%02d] [%ws] [BCryptEncrypt] TERMINATING!", ct_BCE.wYear, ct_BCE.wMonth, ct_BCE.wDay, ct_BCE.wHour, ct_BCE.wMinute, ct_BCE.wSecond, ProcessName);
-            OutputDebugStringA(message);
-            TerminateProcess(pHandle, 0);
-            informTermination();
-            CloseHandle(pHandle);
-        }
-    }
+    //if (cps_BCE > cps_BCE_th && cps_NTCF > cps_NTCF_th && BCE_warn)
+    //{
+    //    char message[128];
+    //    sprintf_s(message, "[F4D0] [%04d-%02d-%02d %02d:%02d:%02d] [%ws] [BCryptEncrypt] [WARNING] [BCryptEncrypt Total: %d] [NtCreateFile Total: %d] Crossed the threshold!", ct_BCE.wYear, ct_BCE.wMonth, ct_BCE.wDay, ct_BCE.wHour, ct_BCE.wMinute, ct_BCE.wSecond, ProcessName, cps_BCE, cps_NTCF);
+    //    OutputDebugStringA(message);
+    //    BCE_warn = FALSE;
+    //    HANDLE pHandle = OpenProcess(PROCESS_TERMINATE, FALSE, GetCurrentProcessId());
+    //    if (pHandle != NULL)
+    //    {
+    //        char message[128];
+    //        sprintf_s(message, "[F4D0] [%04d-%02d-%02d %02d:%02d:%02d] [%ws] [BCryptEncrypt] TERMINATING!", ct_BCE.wYear, ct_BCE.wMonth, ct_BCE.wDay, ct_BCE.wHour, ct_BCE.wMinute, ct_BCE.wSecond, ProcessName);
+    //        OutputDebugStringA(message);
+    //        TerminateProcess(pHandle, 0);
+    //        informTermination();
+    //        CloseHandle(pHandle);
+    //    }
+    //}
 
     // Copy current time to old time
     ot_BCE = ct_BCE;
@@ -253,10 +253,11 @@ BOOL CountCryptEncrypt()
         cps_CE++;
     }
 
-    if (cps_CE > cps_CE_th && cps_NTCF > cps_NTCF_th && CE_warn)
+    //if (cps_CE > cps_CE_th && cps_NTCF > cps_NTCF_th && CE_warn)
+    if (cps_CE > cps_CE_th && CE_warn)
     {
         char message[128];
-        sprintf_s(message, "[F4D0] [%04d-%02d-%02d %02d:%02d:%02d] [%ws] [CryptEncrypt] [WARNING] [CryptEncrypt Total: %d] [NtCreateFile Total: %d] Crossed the threshold!", ct_CE.wYear, ct_CE.wMonth, ct_CE.wDay, ct_CE.wHour, ct_CE.wMinute, ct_CE.wSecond, ProcessName, cps_CE, cps_NTCF);
+        sprintf_s(message, "[F4D0] [%04d-%02d-%02d %02d:%02d:%02d] [%ws] [CryptEncrypt] [WARNING] [CryptEncrypt Total: %d] Crossed the threshold!", ct_CE.wYear, ct_CE.wMonth, ct_CE.wDay, ct_CE.wHour, ct_CE.wMinute, ct_CE.wSecond, ProcessName, cps_CE);
         OutputDebugStringA(message);
         CE_warn = FALSE;
         HANDLE pHandle = OpenProcess(PROCESS_TERMINATE, FALSE, GetCurrentProcessId());
@@ -307,23 +308,23 @@ BOOL CountNtCreateFile()
         cps_NTCF++;
     }
 
-    if ((cps_CE > cps_CE_th || cps_BCE > cps_BCE_th) && cps_NTCF > cps_NTCF_th && CE_warn)
-    {
-        char message[128];
-        sprintf_s(message, "[F4D0] [%04d-%02d-%02d %02d:%02d:%02d] [%ws] [NtCreateFile] [WARNING] [NtCreateFile Total: %d] [CryptEncrypt Total: %d] [BCryptEncrypt Total: %d] Crossed the threshold!", ct_NTCF.wYear, ct_NTCF.wMonth, ct_NTCF.wDay, ct_NTCF.wHour, ct_NTCF.wMinute, ct_NTCF.wSecond, ProcessName, cps_NTCF, cps_CE, cps_BCE);
-        OutputDebugStringA(message);
-        CE_warn = FALSE;
-        HANDLE pHandle = OpenProcess(PROCESS_TERMINATE, FALSE, GetCurrentProcessId());
-        if (pHandle != NULL)
-        {
-            char message[128];
-            sprintf_s(message, "[F4D0] [%04d-%02d-%02d %02d:%02d:%02d] [%ws] [NtCreateFile] TERMINATING!", ct_NTCF.wYear, ct_NTCF.wMonth, ct_NTCF.wDay, ct_NTCF.wHour, ct_NTCF.wMinute, ct_NTCF.wSecond, ProcessName);
-            OutputDebugStringA(message);
-            TerminateProcess(pHandle, 0);
-            informTermination();
-            CloseHandle(pHandle);
-        }
-    }
+    //if ((cps_CE > cps_CE_th || cps_BCE > cps_BCE_th) && cps_NTCF > cps_NTCF_th && CE_warn)
+    //{
+    //    char message[128];
+    //    sprintf_s(message, "[F4D0] [%04d-%02d-%02d %02d:%02d:%02d] [%ws] [NtCreateFile] [WARNING] [NtCreateFile Total: %d] [CryptEncrypt Total: %d] [BCryptEncrypt Total: %d] Crossed the threshold!", ct_NTCF.wYear, ct_NTCF.wMonth, ct_NTCF.wDay, ct_NTCF.wHour, ct_NTCF.wMinute, ct_NTCF.wSecond, ProcessName, cps_NTCF, cps_CE, cps_BCE);
+    //    OutputDebugStringA(message);
+    //    CE_warn = FALSE;
+    //    HANDLE pHandle = OpenProcess(PROCESS_TERMINATE, FALSE, GetCurrentProcessId());
+    //    if (pHandle != NULL)
+    //    {
+    //        char message[128];
+    //        sprintf_s(message, "[F4D0] [%04d-%02d-%02d %02d:%02d:%02d] [%ws] [NtCreateFile] TERMINATING!", ct_NTCF.wYear, ct_NTCF.wMonth, ct_NTCF.wDay, ct_NTCF.wHour, ct_NTCF.wMinute, ct_NTCF.wSecond, ProcessName);
+    //        OutputDebugStringA(message);
+    //        TerminateProcess(pHandle, 0);
+    //        informTermination();
+    //        CloseHandle(pHandle);
+    //    }
+    //}
 
     // Copy current time to old time
     ot_NTCF = ct_NTCF;
@@ -379,19 +380,13 @@ NTSTATUS WINAPI BCryptEncryptHooked(
 
 //CryptEncrypt
 BOOL WINAPI CryptEncryptHooked(
-    _In_ HCRYPTKEY  hKey,
-    _In_ HCRYPTHASH hHash,
-    _In_ BOOL       Final,
-    _In_ DWORD      dwFlags,
-    _Inout_ BYTE* pbData,
-    _Inout_ DWORD* pdwDataLen,
-    _In_ DWORD      dwBufLen) {
-
-    //DWORD ThreadOwnerID = 0;
-    //DWORD MainThread = GetProcessMainThread(::GetCurrentProcessId());
-    //char message[128];
-    //sprintf_s(message, "[F4D0] [%ws] [%ul] [%ld] --> [CryptEncrypt]", ProcessName, MainThread, ::GetCurrentThreadId());
-    //OutputDebugStringA(message);
+    _In_    HCRYPTKEY   hKey,
+    _In_    HCRYPTHASH  hHash,
+    _In_    BOOL        Final,
+    _In_    DWORD       dwFlags,
+    _Inout_ BYTE*       pbData,
+    _Inout_ DWORD*      pdwDataLen,
+    _In_    DWORD       dwBufLen) {
 
     // Run when the application is not white listed
     if (!white_listed)
@@ -474,40 +469,40 @@ BOOL APIENTRY DllMain( HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpRese
         case DLL_PROCESS_ATTACH:
             if (!HookFunctions()) 
             {
-                LPCWSTR ProcessName = L"";
-                ProcessName = GetProcessNamebyID(::GetCurrentProcessId());
-                char message[64];
-                sprintf_s(message, "[F4D0] [%ws] DLL_PROCESS_ATTACH ERROR Attaching", ProcessName);
-                OutputDebugStringA(message);
+                //LPCWSTR ProcessName = L"";
+                //ProcessName = GetProcessNamebyID(::GetCurrentProcessId());
+                //char message[64];
+                //sprintf_s(message, "[F4D0] [%ws] DLL_PROCESS_ATTACH ERROR Attaching", ProcessName);
+                //OutputDebugStringA(message);
 
                 // TODO: check if the application is on a white list, and save the state into a BOOL.
                 // it can be used later today if the application starts to make calls to CryptEncrypt API.
             }
             else
             {
-                LPCWSTR ProcessName = L"";
-                ProcessName = GetProcessNamebyID(::GetCurrentProcessId());
-                char message[64];
-                sprintf_s(message, "[F4D0] [%ws] DLL_PROCESS_ATTACH SUCCESS Attaching", ProcessName);
-                OutputDebugStringA(message);
+                //LPCWSTR ProcessName = L"";
+                //ProcessName = GetProcessNamebyID(::GetCurrentProcessId());
+                //char message[64];
+                //sprintf_s(message, "[F4D0] [%ws] DLL_PROCESS_ATTACH SUCCESS Attaching", ProcessName);
+                //OutputDebugStringA(message);
             }
             break;
         case DLL_THREAD_ATTACH:
             if (!HookFunctions())
             {
-                LPCWSTR ProcessName = L"";
-                ProcessName = GetProcessNamebyID(::GetCurrentProcessId());
-                char message[64];
-                sprintf_s(message, "[F4D0] [%ws] DLL_THREAD_ATTACH ERROR Attaching", ProcessName);
-                OutputDebugStringA(message);
+                //LPCWSTR ProcessName = L"";
+                //ProcessName = GetProcessNamebyID(::GetCurrentProcessId());
+                //char message[64];
+                //sprintf_s(message, "[F4D0] [%ws] DLL_THREAD_ATTACH ERROR Attaching", ProcessName);
+                //OutputDebugStringA(message);
             }
             else
             {
-                LPCWSTR ProcessName = L"";
-                ProcessName = GetProcessNamebyID(::GetCurrentProcessId());
-                char message[64];
-                sprintf_s(message, "[F4D0] [%ws] DLL_THREAD_ATTACH SUCCESS Attaching", ProcessName);
-                OutputDebugStringA(message);
+                //LPCWSTR ProcessName = L"";
+                //ProcessName = GetProcessNamebyID(::GetCurrentProcessId());
+                //char message[64];
+                //sprintf_s(message, "[F4D0] [%ws] DLL_THREAD_ATTACH SUCCESS Attaching", ProcessName);
+                //OutputDebugStringA(message);
             }
             break;
         case DLL_THREAD_DETACH:
