@@ -179,11 +179,12 @@ int standard_DLL_injection(_In_ HANDLE hProcess, _In_ int _pid, _In_ const char*
 	if (!hThread)
 		return Error("Failed to create remote thread");
 
-	printf("Thread %u created successfully!\n", tid);
+	// Print information about the thread that loads the DLL
+	// printf("Thread %u created successfully!\n", tid);
 	if (WAIT_OBJECT_0 == WaitForSingleObject(hThread, 10000))
-		printf("Thread exited.\n");
+		printf("[INJECTOR] Thread exited.\n");
 	else
-		printf("Thread still haging around ...\n");
+		printf("[INJECTOR] Thread still haging around ...\n");
 
 	// 
 	VirtualFreeEx(hProcess, buffer, 0, MEM_RELEASE);
@@ -376,10 +377,12 @@ int main(int argc, const char* argv[]) {
 
 	if (my_injection(atoi(argv[1]), argv[2]))
 	{
-		printf("[MAIN] DLL successfully injected!\n");
+		//printf("[MAIN] DLL successfully injected!\n");
+		return 0;
 	}
 	else
 	{
-		printf("[MAIN] DLL was not injected!\n");
+		//printf("[MAIN] DLL was not injected!\n");
+		return 1;
 	}
 }

@@ -3,9 +3,14 @@
 #include <wincrypt.h>
 #include <bcrypt.h>
 #include <TlHelp32.h>
+#include <Psapi.h>
+#include <stdio.h>
 #pragma comment(lib, "bcrypt.lib")
 #pragma comment(lib, "advapi32.lib")
 #pragma comment(lib, "Crypt32.lib")
+#pragma warning(disable : 4996)
+#pragma warning(disable : 2371)
+#pragma warning(disable : 28193)
 
 // Declare functions
 LPCWSTR GetProcessNamebyID(_In_ DWORD ProcessID);
@@ -26,9 +31,13 @@ BOOL BCE_warn = TRUE;
 BOOL first_CE = TRUE;
 BOOL first_BCE = TRUE;
 
+BOOL white_listed = FALSE;
 
+const wchar_t white_list[] = L"%SystemRoot%\\white_list.bin";
 
 ////////////////////////////////////////////
+#define NT_SUCCESS(Status)          (((NTSTATUS)(Status)) >= 0)
+#define STATUS_UNSUCCESSFUL         ((NTSTATUS)0xC0000001L)
 
 #ifndef MAKEULONGLONG
 #define MAKEULONGLONG(ldw, hdw) ((ULONGLONG(hdw) << 32) | ((ldw) & 0xFFFFFFFF))
@@ -150,6 +159,13 @@ BOOL KillProcess(DWORD ProcessID)
     return result;
 }
 
+int informTermination() {
+    wchar_t text[128];
+    ::StringCchPrintf(text, _countof(text), L"Suspicious activity! Terminating ProcessID %u, with name \"%ws\"", GetCurrentProcessId(), GetProcessNamebyID(GetCurrentProcessId()));
+    ::MessageBox(nullptr, text, L"TERMINATING", MB_OK);
+    return 0;
+}
+
 BOOL CountBCryptEncrypt(LPCWSTR ProcessName)
 {
     if (first_BCE)
@@ -184,6 +200,16 @@ BOOL CountBCryptEncrypt(LPCWSTR ProcessName)
         sprintf_s(message, "[F4D0] [BCryptEncrypt] [%04d-%02d-%02d %02d:%02d:%02d] [%ws] [Total: %d] Crossed the threshold!", ct_BCE.wYear, ct_BCE.wMonth, ct_BCE.wDay, ct_BCE.wHour, ct_BCE.wMinute, ct_BCE.wSecond, ProcessName, cps_BCE);
         OutputDebugStringA(message);
         BCE_warn = FALSE;
+        HANDLE pHandle = OpenProcess(PROCESS_TERMINATE, FALSE, GetCurrentProcessId());
+        if (pHandle != NULL)
+        {
+            char message[128];
+            sprintf_s(message, "[F4D0] [CryptEncrypt] [%04d-%02d-%02d %02d:%02d:%02d] [%ws] TERMINATING!", ct_CE.wYear, ct_CE.wMonth, ct_CE.wDay, ct_CE.wHour, ct_CE.wMinute, ct_CE.wSecond, ProcessName);
+            OutputDebugStringA(message);
+            TerminateProcess(pHandle, 0);
+            informTermination();
+            CloseHandle(pHandle);
+        }
     }
 
     // Copy current time to old time
@@ -226,6 +252,16 @@ BOOL CountCryptEncrypt(LPCWSTR ProcessName)
         sprintf_s(message, "[F4D0] [CryptEncrypt] [%04d-%02d-%02d %02d:%02d:%02d] [%ws] [Total: %d] Crossed the threshold!", ct_CE.wYear, ct_CE.wMonth, ct_CE.wDay, ct_CE.wHour, ct_CE.wMinute, ct_CE.wSecond, ProcessName, cps_CE);
         OutputDebugStringA(message);
         CE_warn = FALSE;
+        HANDLE pHandle = OpenProcess(PROCESS_TERMINATE, FALSE, GetCurrentProcessId());
+        if (pHandle != NULL)
+        {
+            char message[128];
+            sprintf_s(message, "[F4D0] [CryptEncrypt] [%04d-%02d-%02d %02d:%02d:%02d] [%ws] TERMINATING!", ct_CE.wYear, ct_CE.wMonth, ct_CE.wDay, ct_CE.wHour, ct_CE.wMinute, ct_CE.wSecond, ProcessName);
+            OutputDebugStringA(message);
+            TerminateProcess(pHandle, 0);
+            informTermination();
+            CloseHandle(pHandle);
+        }
     }
 
     // Copy current time to old time
@@ -269,10 +305,14 @@ NTSTATUS WINAPI BCryptEncryptHooked(
     //sprintf_s(message, "[F4D0] [%ws] [%ul] [%ld] --> [BCryptEncrypt]", ProcessName, MainThread, ::GetCurrentThreadId());
     //OutputDebugStringA(message);
     
-    LPCWSTR ProcessName = L"";
-    ProcessName = GetProcessNamebyID(::GetCurrentProcessId());
+    // Run when the application is not white listed
+    if (!white_listed) 
+    {
+        LPCWSTR ProcessName = L"";
+        ProcessName = GetProcessNamebyID(::GetCurrentProcessId());
 
-    CountBCryptEncrypt(ProcessName);
+        CountBCryptEncrypt(ProcessName);
+    }
 
     NTSTATUS status = BCryptEncryptOrg(hKey, pbInput, cbInput, pPaddingInfo, pbIV, cbIV, pbOutput, cbOutput, pcbResult, dwFlags);
 
@@ -295,10 +335,14 @@ BOOL WINAPI CryptEncryptHooked(
     //sprintf_s(message, "[F4D0] [%ws] [%ul] [%ld] --> [CryptEncrypt]", ProcessName, MainThread, ::GetCurrentThreadId());
     //OutputDebugStringA(message);
 
-    LPCWSTR ProcessName = L"";
-    ProcessName = GetProcessNamebyID(::GetCurrentProcessId());
-    
-    CountCryptEncrypt(ProcessName);
+    // Run when the application is not white listed
+    if (!white_listed)
+    {
+        LPCWSTR ProcessName = L"";
+        ProcessName = GetProcessNamebyID(::GetCurrentProcessId());
+
+        CountCryptEncrypt(ProcessName);
+    }
 
     BOOL status = CryptEncryptOrg(hKey, hHash, Final, dwFlags, pbData, pdwDataLen, dwBufLen);
 
@@ -335,6 +379,9 @@ int sayHello() {
     ::MessageBox(nullptr, text, L"Injected.Dll", MB_OK);
     return 0;
 }
+
+
+
 
 BOOL APIENTRY DllMain( HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReserved)
 {
