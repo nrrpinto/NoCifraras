@@ -549,7 +549,7 @@ int main() {
 			//int re = get_pids_diff(pids_old, pids, numOldProcesses, numCurrProcesses, pids_change, &num_pids_changed);
 			//for (int i = 0; i < num_pids_changed;i++)
 			//{
-			//	wprintf(L"#### TERMINATING PROCESS ######################################\n");
+			//  wprintf(L"#### TERMINATING PROCESS ######################################\n");
 			//	wprintf(L"[MAIN] [Processes terminated] [PID: %d] [PNAME: %ws] \n", pids_change[i]);
 			//}
 		}

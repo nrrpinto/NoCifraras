@@ -5,9 +5,11 @@
 #include <TlHelp32.h>
 #include <Psapi.h>
 #include <stdio.h>
+#include <winternl.h>
 #pragma comment(lib, "bcrypt.lib")
 #pragma comment(lib, "advapi32.lib")
 #pragma comment(lib, "Crypt32.lib")
+#pragma comment(lib, "ntdll.lib")
 #pragma warning(disable : 4996)
 #pragma warning(disable : 2371)
 #pragma warning(disable : 28193)
@@ -17,19 +19,23 @@ LPCWSTR GetProcessNamebyID(_In_ DWORD ProcessID);
 DWORD GetThreadOwnerIDbyID(_In_ DWORD ThreadID);
 ////////////////////////////////////////////
 
-const int cps_CE_th = 20; // Calls per second CryptEncrypt threshold
-const int cps_BCE_th = 20; // Calls per second BCryptEncrypt threshold
+const int cps_CE_th = 30; // Calls per second CryptEncrypt threshold
+const int cps_BCE_th = 30; // Calls per second BCryptEncrypt threshold
+const int cps_NTCF_th = 30; // Calls per second NtCreateFile threshold
 
 int cps_CE = 0; // Calls per second CryptEncrypt - to monitor current calls per second
 int cps_BCE = 0; // Calls per second BCryptEncrypt - to monitor current calls per second
+int cps_NTCF = 0; // Calls per second NtCreateFile - to monitor current calls per second
 
-SYSTEMTIME ct_CE, ct_BCE, ot_CE, ot_BCE; // current time (ct), old time (ot), difference (df) for CryptEncrypt and BCryptEncrypt
+SYSTEMTIME ct_CE, ct_BCE, ct_NTCF, ot_CE, ot_BCE, ot_NTCF; // current time (ct), old time (ot), difference (df) for CryptEncrypt and BCryptEncrypt
 
 BOOL CE_warn = TRUE;
 BOOL BCE_warn = TRUE;
+BOOL NTCF_warn = TRUE;
 
 BOOL first_CE = TRUE;
 BOOL first_BCE = TRUE;
+BOOL first_NTCF = TRUE;
 
 BOOL white_listed = FALSE;
 
@@ -89,8 +95,6 @@ DWORD GetProcessMainThread(DWORD dwProcID)
     return dwMainThreadID;
 }
 
-/*
-*/
 LPCWSTR GetProcessNamebyID(_In_ DWORD ProcessID)
 {
     LPCWSTR ProcessName = L"";
@@ -118,8 +122,6 @@ LPCWSTR GetProcessNamebyID(_In_ DWORD ProcessID)
     return ProcessName;
 }
 
-/*
-*/
 DWORD GetThreadOwnerIDbyID(_In_ DWORD ThreadID)
 {
     DWORD OwnerProcessID = 0;
@@ -166,23 +168,26 @@ int informTermination() {
     return 0;
 }
 
-BOOL CountBCryptEncrypt(LPCWSTR ProcessName)
+BOOL CountBCryptEncrypt()
 {
     if (first_BCE)
     {
-        GetSystemTime(&ot_BCE);
-        GetSystemTime(&ct_BCE);
+        GetLocalTime(&ot_BCE);
+        GetLocalTime(&ct_BCE);
         first_BCE = FALSE;
         cps_BCE++;
         return TRUE;
     }
 
-    GetSystemTime(&ct_BCE);
+    LPCWSTR ProcessName = L"";
+    ProcessName = GetProcessNamebyID(::GetCurrentProcessId());
+
+    GetLocalTime(&ct_BCE);
 
     if (ct_BCE.wSecond > ot_BCE.wSecond || ct_BCE.wMinute > ot_BCE.wMinute)
     {
         char message[128];
-        sprintf_s(message, "[F4D0] [BCryptEncrypt] [%04d-%02d-%02d %02d:%02d:%02d] [%ws] [Total: %d]", ot_BCE.wYear, ot_BCE.wMonth, ot_BCE.wDay, ot_BCE.wHour, ot_BCE.wMinute, ot_BCE.wSecond, ProcessName, cps_BCE);
+        sprintf_s(message, "[F4D0] [%04d-%02d-%02d %02d:%02d:%02d] [%ws] [BCryptEncrypt] [Total: %d]", ot_BCE.wYear, ot_BCE.wMonth, ot_BCE.wDay, ot_BCE.wHour, ot_BCE.wMinute, ot_BCE.wSecond, ProcessName, cps_BCE);
         OutputDebugStringA(message);
 
         // reset the counter for the next period of time
@@ -194,17 +199,17 @@ BOOL CountBCryptEncrypt(LPCWSTR ProcessName)
         cps_BCE++;
     }
 
-    if (cps_BCE > cps_BCE_th && BCE_warn)
+    if (cps_BCE > cps_BCE_th && cps_NTCF > cps_NTCF_th && BCE_warn)
     {
         char message[128];
-        sprintf_s(message, "[F4D0] [BCryptEncrypt] [%04d-%02d-%02d %02d:%02d:%02d] [%ws] [Total: %d] Crossed the threshold!", ct_BCE.wYear, ct_BCE.wMonth, ct_BCE.wDay, ct_BCE.wHour, ct_BCE.wMinute, ct_BCE.wSecond, ProcessName, cps_BCE);
+        sprintf_s(message, "[F4D0] [%04d-%02d-%02d %02d:%02d:%02d] [%ws] [BCryptEncrypt] [WARNING] [BCryptEncrypt Total: %d] [NtCreateFile Total: %d] Crossed the threshold!", ct_BCE.wYear, ct_BCE.wMonth, ct_BCE.wDay, ct_BCE.wHour, ct_BCE.wMinute, ct_BCE.wSecond, ProcessName, cps_BCE, cps_NTCF);
         OutputDebugStringA(message);
         BCE_warn = FALSE;
         HANDLE pHandle = OpenProcess(PROCESS_TERMINATE, FALSE, GetCurrentProcessId());
         if (pHandle != NULL)
         {
             char message[128];
-            sprintf_s(message, "[F4D0] [CryptEncrypt] [%04d-%02d-%02d %02d:%02d:%02d] [%ws] TERMINATING!", ct_CE.wYear, ct_CE.wMonth, ct_CE.wDay, ct_CE.wHour, ct_CE.wMinute, ct_CE.wSecond, ProcessName);
+            sprintf_s(message, "[F4D0] [%04d-%02d-%02d %02d:%02d:%02d] [%ws] [BCryptEncrypt] TERMINATING!", ct_BCE.wYear, ct_BCE.wMonth, ct_BCE.wDay, ct_BCE.wHour, ct_BCE.wMinute, ct_BCE.wSecond, ProcessName);
             OutputDebugStringA(message);
             TerminateProcess(pHandle, 0);
             informTermination();
@@ -217,24 +222,26 @@ BOOL CountBCryptEncrypt(LPCWSTR ProcessName)
     return TRUE;
 }
 
-BOOL CountCryptEncrypt(LPCWSTR ProcessName)
+BOOL CountCryptEncrypt()
 {
-
     if (first_CE)
     {
-        GetSystemTime(&ot_CE);
-        GetSystemTime(&ct_CE);
+        GetLocalTime(&ot_CE);
+        GetLocalTime(&ct_CE);
         first_CE = FALSE;
         cps_CE++;
         return TRUE;
     }
 
-    GetSystemTime(&ct_CE);
+    LPCWSTR ProcessName = L"";
+    ProcessName = GetProcessNamebyID(::GetCurrentProcessId());
+
+    GetLocalTime(&ct_CE);
     
     if (ct_CE.wSecond > ot_CE.wSecond || ct_CE.wMinute > ot_CE.wMinute)
     {
         char message[128];
-        sprintf_s(message, "[F4D0] [CryptEncrypt] [%04d-%02d-%02d %02d:%02d:%02d] [%ws] [Total: %d]", ot_CE.wYear, ot_CE.wMonth, ot_CE.wDay, ot_CE.wHour, ot_CE.wMinute, ot_CE.wSecond, ProcessName, cps_CE);
+        sprintf_s(message, "[F4D0] [%04d-%02d-%02d %02d:%02d:%02d] [%ws] [CryptEncrypt Total: %d]", ot_CE.wYear, ot_CE.wMonth, ot_CE.wDay, ot_CE.wHour, ot_CE.wMinute, ot_CE.wSecond, ProcessName, cps_CE);
         OutputDebugStringA(message);
 
         // reset the counter for the next period of time
@@ -246,17 +253,17 @@ BOOL CountCryptEncrypt(LPCWSTR ProcessName)
         cps_CE++;
     }
 
-    if (cps_CE > cps_CE_th && CE_warn)
+    if (cps_CE > cps_CE_th && cps_NTCF > cps_NTCF_th && CE_warn)
     {
         char message[128];
-        sprintf_s(message, "[F4D0] [CryptEncrypt] [%04d-%02d-%02d %02d:%02d:%02d] [%ws] [Total: %d] Crossed the threshold!", ct_CE.wYear, ct_CE.wMonth, ct_CE.wDay, ct_CE.wHour, ct_CE.wMinute, ct_CE.wSecond, ProcessName, cps_CE);
+        sprintf_s(message, "[F4D0] [%04d-%02d-%02d %02d:%02d:%02d] [%ws] [CryptEncrypt] [WARNING] [CryptEncrypt Total: %d] [NtCreateFile Total: %d] Crossed the threshold!", ct_CE.wYear, ct_CE.wMonth, ct_CE.wDay, ct_CE.wHour, ct_CE.wMinute, ct_CE.wSecond, ProcessName, cps_CE, cps_NTCF);
         OutputDebugStringA(message);
         CE_warn = FALSE;
         HANDLE pHandle = OpenProcess(PROCESS_TERMINATE, FALSE, GetCurrentProcessId());
         if (pHandle != NULL)
         {
             char message[128];
-            sprintf_s(message, "[F4D0] [CryptEncrypt] [%04d-%02d-%02d %02d:%02d:%02d] [%ws] TERMINATING!", ct_CE.wYear, ct_CE.wMonth, ct_CE.wDay, ct_CE.wHour, ct_CE.wMinute, ct_CE.wSecond, ProcessName);
+            sprintf_s(message, "[F4D0] [%04d-%02d-%02d %02d:%02d:%02d] [%ws] [CryptEncrypt] TERMINATING!", ct_CE.wYear, ct_CE.wMonth, ct_CE.wDay, ct_CE.wHour, ct_CE.wMinute, ct_CE.wSecond, ProcessName);
             OutputDebugStringA(message);
             TerminateProcess(pHandle, 0);
             informTermination();
@@ -269,6 +276,60 @@ BOOL CountCryptEncrypt(LPCWSTR ProcessName)
     return TRUE;
 }
 
+BOOL CountNtCreateFile()
+{
+    if (first_NTCF)
+    {
+        GetLocalTime(&ot_NTCF);
+        GetLocalTime(&ct_NTCF);
+        first_NTCF = FALSE;
+        cps_NTCF++;
+        return TRUE;
+    }
+
+    LPCWSTR ProcessName = L"";
+    ProcessName = GetProcessNamebyID(::GetCurrentProcessId());
+
+    GetLocalTime(&ct_NTCF);
+
+    if (ct_NTCF.wSecond > ot_NTCF.wSecond || ct_NTCF.wMinute > ot_NTCF.wMinute)
+    {
+        char message[128];
+        sprintf_s(message, "[F4D0] [%04d-%02d-%02d %02d:%02d:%02d] [%ws] [NtCreateFile] [Total: %d]", ot_NTCF.wYear, ot_NTCF.wMonth, ot_NTCF.wDay, ot_NTCF.wHour, ot_NTCF.wMinute, ot_NTCF.wSecond, ProcessName, cps_NTCF);
+        OutputDebugStringA(message);
+
+        // reset the counter for the next period of time
+        cps_NTCF = 0;
+        CE_warn = TRUE;
+    }
+    else
+    {
+        cps_NTCF++;
+    }
+
+    if ((cps_CE > cps_CE_th || cps_BCE > cps_BCE_th) && cps_NTCF > cps_NTCF_th && CE_warn)
+    {
+        char message[128];
+        sprintf_s(message, "[F4D0] [%04d-%02d-%02d %02d:%02d:%02d] [%ws] [NtCreateFile] [WARNING] [NtCreateFile Total: %d] [CryptEncrypt Total: %d] [BCryptEncrypt Total: %d] Crossed the threshold!", ct_NTCF.wYear, ct_NTCF.wMonth, ct_NTCF.wDay, ct_NTCF.wHour, ct_NTCF.wMinute, ct_NTCF.wSecond, ProcessName, cps_NTCF, cps_CE, cps_BCE);
+        OutputDebugStringA(message);
+        CE_warn = FALSE;
+        HANDLE pHandle = OpenProcess(PROCESS_TERMINATE, FALSE, GetCurrentProcessId());
+        if (pHandle != NULL)
+        {
+            char message[128];
+            sprintf_s(message, "[F4D0] [%04d-%02d-%02d %02d:%02d:%02d] [%ws] [NtCreateFile] TERMINATING!", ct_NTCF.wYear, ct_NTCF.wMonth, ct_NTCF.wDay, ct_NTCF.wHour, ct_NTCF.wMinute, ct_NTCF.wSecond, ProcessName);
+            OutputDebugStringA(message);
+            TerminateProcess(pHandle, 0);
+            informTermination();
+            CloseHandle(pHandle);
+        }
+    }
+
+    // Copy current time to old time
+    ot_NTCF = ct_NTCF;
+    return TRUE;
+}
+
 /////////////////////////////////////////////////////////////////
  ///////////////////////////////////////////////////////////////
   /////////////////////////////////////////////////////////////
@@ -277,12 +338,14 @@ BOOL CountCryptEncrypt(LPCWSTR ProcessName)
      ///////////////////////////////////////////////////////
       /////////////////////////////////////////////////////
 
-
 //BCryptEncrypt
 decltype(::BCryptEncrypt)* BCryptEncryptOrg = ::BCryptEncrypt;
 
 //CryptEncrypt
 decltype(::CryptEncrypt)* CryptEncryptOrg = ::CryptEncrypt;
+
+//NtCreateFile
+decltype(::NtCreateFile)* NtCreateFileOrg = ::NtCreateFile;
 
 //////////////////////////////////////////
 
@@ -307,12 +370,7 @@ NTSTATUS WINAPI BCryptEncryptHooked(
     
     // Run when the application is not white listed
     if (!white_listed) 
-    {
-        LPCWSTR ProcessName = L"";
-        ProcessName = GetProcessNamebyID(::GetCurrentProcessId());
-
-        CountBCryptEncrypt(ProcessName);
-    }
+        CountBCryptEncrypt();
 
     NTSTATUS status = BCryptEncryptOrg(hKey, pbInput, cbInput, pPaddingInfo, pbIV, cbIV, pbOutput, cbOutput, pcbResult, dwFlags);
 
@@ -337,14 +395,38 @@ BOOL WINAPI CryptEncryptHooked(
 
     // Run when the application is not white listed
     if (!white_listed)
-    {
-        LPCWSTR ProcessName = L"";
-        ProcessName = GetProcessNamebyID(::GetCurrentProcessId());
-
-        CountCryptEncrypt(ProcessName);
-    }
+        CountCryptEncrypt();
 
     BOOL status = CryptEncryptOrg(hKey, hHash, Final, dwFlags, pbData, pdwDataLen, dwBufLen);
+
+    return status;
+}
+
+//CryptEncrypt
+NTSTATUS WINAPI NtCreateFileHooked(
+    _Out_          PHANDLE            FileHandle,
+    _In_           ACCESS_MASK        DesiredAccess,
+    _In_           POBJECT_ATTRIBUTES ObjectAttributes,
+    _Out_          PIO_STATUS_BLOCK   IoStatusBlock,
+    _In_           PLARGE_INTEGER     AllocationSize,
+    _In_           ULONG              FileAttributes,
+    _In_           ULONG              ShareAccess,
+    _In_           ULONG              CreateDisposition,
+    _In_           ULONG              CreateOptions,
+    _In_           PVOID              EaBuffer,
+    _In_           ULONG              EaLength) {
+
+    //DWORD ThreadOwnerID = 0;
+    //DWORD MainThread = GetProcessMainThread(::GetCurrentProcessId());
+    //char message[128];
+    //sprintf_s(message, "[F4D0] [%ws] [%ul] [%ld] --> [CryptEncrypt]", ProcessName, MainThread, ::GetCurrentThreadId());
+    //OutputDebugStringA(message);
+
+    // Run when the application is not white listed
+    if (!white_listed)
+        CountNtCreateFile();
+
+    NTSTATUS status = NtCreateFileOrg(FileHandle, DesiredAccess, ObjectAttributes, IoStatusBlock, AllocationSize, FileAttributes, ShareAccess, CreateDisposition, CreateOptions, EaBuffer, EaLength);
 
     return status;
 }
@@ -355,6 +437,7 @@ bool HookFunctions() {
     // The functions to attach
     DetourAttach((PVOID*)&BCryptEncryptOrg, BCryptEncryptHooked);
     DetourAttach((PVOID*)&CryptEncryptOrg, CryptEncryptHooked);
+    DetourAttach((PVOID*)&NtCreateFileOrg, NtCreateFileHooked);
     auto error = DetourTransactionCommit();
     return error == ERROR_SUCCESS;
 }
@@ -365,6 +448,7 @@ bool DeHookFunctions() {
     // The functions to deattach
     DetourDetach((PVOID*)&BCryptEncryptOrg, BCryptEncryptHooked);
     DetourDetach((PVOID*)&CryptEncryptOrg, CryptEncryptHooked);
+    DetourDetach((PVOID*)&NtCreateFileOrg, NtCreateFileHooked);
     auto error = DetourTransactionCommit();
     return error == ERROR_SUCCESS;
 }
