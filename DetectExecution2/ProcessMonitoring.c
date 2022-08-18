@@ -35,8 +35,6 @@ int Error(const char* text) {
 	return 1;
 }
 
-/*
-*/
 DWORD GetProcessBit(_In_ int ProcessID)
 {
 	typedef BOOL(WINAPI* pfnIsWow64Process)(HANDLE, PBOOL);
@@ -60,8 +58,6 @@ DWORD GetProcessBit(_In_ int ProcessID)
 	return 0;
 }
 
-/*
-*/
 LPCWSTR GetProcessNamebyID(_In_ DWORD ProcessID)
 {
 	LPCWSTR ProcessName = L"";
