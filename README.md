@@ -8,5 +8,5 @@ One of the conclusions of this project is that most ransomware applications, 92%
 
 The application is contains three modules: a monitor of process monitor; a DLL injector; and a DLL to be injected into processes and monitor them internally for Windows API calls.
 
-DISCLAIMER: Use this tool at your own risk. The creator of Inquisitor is not responsible for any damage related to any kind of use of this tool.
+DISCLAIMER: Use this tool at your own risk. The creator of NoCifraras is not responsible for any damage related to any kind of use of this tool.
 DISCLAIMER 2: The code is not the more elegant and needs to be optimized for memory use.
